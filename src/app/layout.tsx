@@ -6,8 +6,8 @@ const inter = Inter({ subsets: ["latin"] });
 const robotoMono = Roboto_Mono({ subsets: ["latin"], variable: "--font-mono" });
 
 export const metadata: Metadata = {
-  title: "METAR & TAF Decoder",
-  description: "Decodieren Sie METAR- und TAF-Wettermeldungen in lesbare Informationen",
+  title: "Cloudline · METAR & TAF",
+  description: "Pflug-und Planungswetter für jeden Platz auf der Welt",
 };
 
 export default function RootLayout({

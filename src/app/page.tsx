@@ -287,7 +287,7 @@ export default function Home() {
       <header className="border-b border-[hsl(220,16%,20%)] bg-[hsl(220,24%,10%)]/88 backdrop-blur-sm">
         <div className="mx-auto max-w-6xl px-4 py-4 flex items-center gap-3">
           <Radar className="w-6 h-6 text-aviation-green" />
-          <span className="font-bold text-xl text-aviation-green tracking-wider uppercase" style={{ fontFamily: "'Roboto Mono', ui-monospace, monospace" }}>METAR · TAF Decoder</span>
+          <span className="font-bold text-xl text-foreground tracking-wider uppercase" style={{ fontFamily: "'Roboto Mono', ui-monospace, monospace" }}>CLOUDLINE</span>
           <div className="ml-auto flex items-center gap-2">
             <div className="w-2 h-2 rounded-full bg-aviation-green animate-pulse" />
             <span className="text-xs text-muted-foreground font-mono">SYS ONLINE</span>
@@ -297,8 +297,8 @@ export default function Home() {
 
       <main className="mx-auto max-w-6xl px-4 py-8 space-y-6">
         <div className="text-center">
-          <h1 className="text-4xl font-bold text-foreground mb-2 tracking-tight crt-text">METAR · TAF · Flight Weather</h1>
-          <p className="text-muted-foreground font-mono text-sm">Clean, fast weather data for pilots.</p>
+          <h1 className="text-4xl font-bold text-foreground mb-2 tracking-tight crt-text">Cloudline</h1>
+          <p className="text-muted-foreground font-mono text-sm">METAR · TAF · FLIGHT WEATHER FOR EVERY AIRFIELD WORLDWIDE</p>
         </div>
 
         <Card className="cockpit-display glow-border">

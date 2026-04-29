@@ -1,0 +1,9 @@
+{
+  "name": "METAR TAF Decoder",
+  "short_name": "METAR",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#09111d",
+  "theme_color": "#00ff9c",
+  "icons": []
+}

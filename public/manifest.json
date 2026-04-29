@@ -1,9 +1,9 @@
 {
-  "name": "METAR TAF Decoder",
-  "short_name": "METAR",
+  "name": "Cloudline · Flight Weather",
+  "short_name": "Cloudline",
   "start_url": "/",
   "display": "standalone",
-  "background_color": "#09111d",
-  "theme_color": "#00ff9c",
+  "background_color": "#0f172a",
+  "theme_color": "#34d399",
   "icons": []
 }
