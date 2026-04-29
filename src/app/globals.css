@@ -4,35 +4,33 @@
 
 @layer base {
   :root {
-    /* Aviation Cockpit Dark Theme */
-    --background: 222 47% 6%; /* slate-950 */
-    --foreground: 210 40% 98%;
-    --card: 222 47% 8%;
-    --card-foreground: 210 40% 98%;
-    --popover: 222 47% 8%;
-    --popover-foreground: 210 40% 98%;
-    --primary: 120 100% 50%; /* #00FF00 cockpit green */
-    --primary-foreground: 222 47% 6%;
-    --secondary: 217 33% 17%;
-    --secondary-foreground: 210 40% 98%;
-    --muted: 217 33% 17%;
-    --muted-foreground: 215 20% 55%;
-    --accent: 217 33% 17%;
-    --accent-foreground: 210 40% 98%;
-    --destructive: 0 100% 60%; /* #FF3333 fire red */
-    --destructive-foreground: 210 40% 98%;
-    --border: 217 33% 20%;
-    --input: 217 33% 20%;
-    --ring: 120 100% 50%;
-    --radius: 0.5rem;
+    --background: 220 28% 8%;
+    --foreground: 210 20% 96%;
+    --card: 220 24% 11%;
+    --card-foreground: 210 20% 96%;
+    --popover: 220 24% 11%;
+    --popover-foreground: 210 20% 96%;
+    --primary: 160 84% 39%;
+    --primary-foreground: 220 28% 8%;
+    --secondary: 220 18% 16%;
+    --secondary-foreground: 210 20% 96%;
+    --muted: 220 18% 16%;
+    --muted-foreground: 215 14% 65%;
+    --accent: 220 18% 16%;
+    --accent-foreground: 210 20% 96%;
+    --destructive: 0 72% 56%;
+    --destructive-foreground: 210 20% 96%;
+    --border: 220 16% 20%;
+    --input: 220 16% 20%;
+    --ring: 160 84% 39%;
+    --radius: 0.75rem;
 
-    /* Aviation specific */
-    --aviation-green: #00FF00;
-    --aviation-yellow: #FFD700;
-    --aviation-red: #FF3333;
-    --aviation-amber: #FF8C00;
-    --scope-grid: hsla(120, 100%, 50%, 0.06);
-    --card-glow: hsla(120, 100%, 50%, 0.08);
+    --aviation-green: #34d399;
+    --aviation-yellow: #facc15;
+    --aviation-red: #f87171;
+    --aviation-amber: #fb923c;
+    --scope-grid: hsla(160, 40%, 60%, 0.03);
+    --card-glow: hsla(160, 40%, 60%, 0.04);
   }
 
   * {
@@ -47,48 +45,41 @@
 
 @layer components {
   .radar-grid {
-    background-image:
-      radial-gradient(circle at center, transparent 0%, hsl(222 47% 6%) 80%),
-      repeating-linear-gradient(0deg, var(--scope-grid) 0px, var(--scope-grid) 1px, transparent 1px, transparent 60px),
-      repeating-linear-gradient(90deg, var(--scope-grid) 0px, var(--scope-grid) 1px, transparent 1px, transparent 60px);
-    background-size: 100% 100%, 100% 100%, 100% 100%;
+    background:
+      radial-gradient(circle at top, hsla(160, 30%, 20%, 0.12), transparent 35%),
+      linear-gradient(180deg, hsl(220 28% 9%), hsl(220 28% 8%));
   }
 
   .glow-border {
-    box-shadow:
-      0 0 0 1px hsla(120, 100%, 50%, 0.1),
-      0 0 20px -4px var(--card-glow);
+    box-shadow: 0 8px 28px rgba(0, 0, 0, 0.18);
   }
 
   .cockpit-display {
-    background: hsl(222 47% 5%);
-    border: 1px solid hsl(217 33% 25%);
-    box-shadow:
-      inset 0 0 20px rgba(0,0,0,0.6),
-      0 0 8px rgba(0,255,0,0.05);
+    background: hsl(220 24% 11% / 0.92);
+    border: 1px solid hsl(220 16% 20%);
+    box-shadow: 0 4px 18px rgba(0, 0, 0, 0.16);
+    backdrop-filter: blur(8px);
   }
 
   .cockpit-input:focus {
     outline: none;
     border-color: var(--aviation-green);
-    box-shadow:
-      inset 0 0 20px rgba(0,0,0,0.6),
-      0 0 12px rgba(0,255,0,0.15);
+    box-shadow: 0 0 0 3px rgba(52, 211, 153, 0.12);
   }
 
   .crt-text {
     font-family: 'Roboto Mono', ui-monospace, monospace;
-    text-shadow: 0 0 2px rgba(0,255,0,0.3), 0 0 8px rgba(0,255,0,0.1);
+    text-shadow: none;
   }
 
   .safety-banner {
-    background: linear-gradient(135deg, hsla(45, 100%, 50%, 0.12), hsla(30, 100%, 50%, 0.08));
-    border: 1px solid hsla(45, 100%, 50%, 0.35);
-    box-shadow: 0 0 20px -4px hsla(45, 100%, 50%, 0.15);
+    background: hsla(38, 92%, 50%, 0.08);
+    border: 1px solid hsla(38, 92%, 50%, 0.22);
+    box-shadow: none;
   }
 
   .scope-ring {
-    border: 1px solid hsla(120, 100%, 50%, 0.12);
+    border: 1px solid hsla(220, 16%, 24%, 1);
   }
 
   /* Custom scrollbar for dark cockpit feel */

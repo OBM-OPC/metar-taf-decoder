@@ -283,9 +283,9 @@ export default function Home() {
   };
 
   return (
-    <div className="min-h-screen bg-[hsl(222,47%,6%)] radar-grid">
-      <header className="border-b border-[hsl(217,33%,20%)] bg-[hsl(222,47%,5%)]/90 backdrop-blur-sm">
-        <div className="mx-auto max-w-7xl px-4 py-4 flex items-center gap-3">
+    <div className="min-h-screen radar-grid">
+      <header className="border-b border-[hsl(220,16%,20%)] bg-[hsl(220,24%,10%)]/88 backdrop-blur-sm">
+        <div className="mx-auto max-w-6xl px-4 py-4 flex items-center gap-3">
           <Radar className="w-6 h-6 text-aviation-green" />
           <span className="font-bold text-xl text-aviation-green tracking-wider uppercase" style={{ fontFamily: "'Roboto Mono', ui-monospace, monospace" }}>METAR · TAF Decoder</span>
           <div className="ml-auto flex items-center gap-2">
@@ -295,10 +295,10 @@ export default function Home() {
         </div>
       </header>
 
-      <main className="mx-auto max-w-7xl px-4 py-8 space-y-6">
+      <main className="mx-auto max-w-6xl px-4 py-8 space-y-6">
         <div className="text-center">
-          <h1 className="text-4xl font-bold text-aviation-green mb-2 tracking-tight crt-text">METAR · TAF · Flight Weather</h1>
-          <p className="text-muted-foreground font-mono text-sm">WELTWEITE METARS · TAFS · TRENDS · RUNWAY COMPONENTS</p>
+          <h1 className="text-4xl font-bold text-foreground mb-2 tracking-tight crt-text">METAR · TAF · Flight Weather</h1>
+          <p className="text-muted-foreground font-mono text-sm">Clean, fast weather data for pilots.</p>
         </div>
 
         <Card className="cockpit-display glow-border">
@@ -307,8 +307,8 @@ export default function Home() {
               <Input placeholder="ICAO (EDDF)" value={icaoInput} onChange={(e) => setIcaoInput(e.target.value.toUpperCase())} onKeyDown={(e) => e.key === 'Enter' && loadStation()} className="font-mono text-lg h-12 uppercase bg-[hsl(222,47%,8%)] border-[hsl(217,33%,25%)] text-aviation-green" maxLength={4} />
               <Input placeholder="Vergleich (EGLL)" value={compareInput} onChange={(e) => setCompareInput(e.target.value.toUpperCase())} onKeyDown={(e) => e.key === 'Enter' && loadStation(compareInput, true)} className="font-mono text-lg h-12 uppercase bg-[hsl(222,47%,8%)] border-[hsl(217,33%,25%)] text-aviation-green" maxLength={4} />
               <Input placeholder="Runway 27" value={runway} onChange={(e) => setRunway(e.target.value.toUpperCase())} className="font-mono text-lg h-12 uppercase bg-[hsl(222,47%,8%)] border-[hsl(217,33%,25%)] text-aviation-green" maxLength={3} />
-              <Button onClick={() => loadStation()} disabled={loading} className="h-12 bg-aviation-green/10 text-aviation-green border border-aviation-green/30 hover:bg-aviation-green/20 font-mono uppercase tracking-wider">{loading ? <Loader2 className="w-5 h-5 animate-spin" /> : <><Search className="w-4 h-4 mr-2" />Abrufen</>}</Button>
-              <Button onClick={() => loadStation(compareInput, true)} disabled={loading || !compareInput} className="h-12 bg-sky-500/10 text-sky-300 border border-sky-500/30 hover:bg-sky-500/20 font-mono uppercase tracking-wider"><GitCompare className="w-4 h-4 mr-2" />Vergleich</Button>
+              <Button onClick={() => loadStation()} disabled={loading} className="h-12 bg-emerald-500 text-slate-950 hover:bg-emerald-400 font-mono uppercase tracking-wider">{loading ? <Loader2 className="w-5 h-5 animate-spin" /> : <><Search className="w-4 h-4 mr-2" />Abrufen</>}</Button>
+              <Button onClick={() => loadStation(compareInput, true)} disabled={loading || !compareInput} className="h-12 bg-[hsl(220,18%,16%)] text-foreground border border-[hsl(220,16%,24%)] hover:bg-[hsl(220,18%,20%)] font-mono uppercase tracking-wider"><GitCompare className="w-4 h-4 mr-2" />Vergleich</Button>
             </div>
 
             {(favorites.length > 0 || searchHistory.length > 0) && (
@@ -345,7 +345,7 @@ export default function Home() {
         {liveMetar && (
           <>
             <div className="flex items-center justify-between gap-4 font-mono text-sm">
-              <div className={`px-3 py-2 rounded-md border ${activeCategory.color}`}>Aktuelle Kategorie: {activeCategory.cat}</div>
+              <div className={`px-3 py-2 rounded-md border ${activeCategory.color}`}>Kategorie: {activeCategory.cat}</div>
               <div className="flex gap-2">
                 <Button variant="outline" onClick={() => toggleFavorite(liveMetar.icaoId)} className="border-yellow-500/30 text-yellow-300 bg-yellow-500/10 hover:bg-yellow-500/20">
                   <Star className="w-4 h-4 mr-2" />{favorites.includes(liveMetar.icaoId) ? 'Favorit entfernt' : 'Favorit'}
@@ -424,8 +424,8 @@ export default function Home() {
         )}
       </main>
 
-      <footer className="border-t border-[hsl(217,33%,20%)] mt-12 py-6">
-        <div className="mx-auto max-w-7xl px-4 text-center text-xs text-muted-foreground font-mono">
+      <footer className="border-t border-[hsl(220,16%,20%)] mt-12 py-6">
+        <div className="mx-auto max-w-6xl px-4 text-center text-xs text-muted-foreground font-mono">
           <p>METAR & TAF Decoder · Datenquelle: Aviation Weather Center</p>
           <p className="mt-1">Nicht für flugbetriebliche Zwecke geeignet · Always consult official sources</p>
         </div>
