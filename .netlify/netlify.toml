@@ -1,21 +1,14 @@
-headers = []
-redirects = []
-
-[functions]
-
-[functions."*"]
-
-[[plugins]]
-origin = "default"
-package = "@netlify/plugin-nextjs"
-
-[plugins.inputs]
+functionsDirectory = "/data/.openclaw/workspace/projects/metar-decoder/netlify/functions"
+functionsDirectoryOrigin = "default"
+headersOrigin = "inline"
+redirectsOrigin = "inline"
 
 [build]
 publish = "/data/.openclaw/workspace/projects/metar-decoder/out"
 publishOrigin = "config"
 commandOrigin = "config"
 command = "npm run build"
+functions = "/data/.openclaw/workspace/projects/metar-decoder/netlify/functions"
 
 [build.environment]
 NODE_VERSION = "18"
@@ -31,3 +24,53 @@ NODE_VERSION = "18"
 [build.processing.js]
 
 [build.services]
+
+[[edge_functions]]
+path = "/api/metar"
+function = "metar"
+
+[functions]
+
+[functions."*"]
+
+[[plugins]]
+origin = "default"
+package = "@netlify/plugin-nextjs"
+
+[plugins.inputs]
+
+[[headers]]
+for = "/_next/static/*"
+
+[headers.values]
+Cache-Control = "public, max-age=31536000, immutable"
+
+[[redirects]]
+from = "/_next/image"
+to = "/.netlify/images?url=:url&w=:width&q=:quality"
+status = 200.0
+force = false
+
+[redirects.query]
+url = ":url"
+w = ":width"
+q = ":quality"
+
+[redirects.conditions]
+
+[redirects.headers]
+
+[[redirects]]
+from = "/_ipx/*"
+to = "/.netlify/images?url=:url&w=:width&q=:quality"
+status = 200.0
+force = false
+
+[redirects.query]
+url = ":url"
+w = ":width"
+q = ":quality"
+
+[redirects.conditions]
+
+[redirects.headers]

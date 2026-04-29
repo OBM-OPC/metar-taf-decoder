@@ -47,6 +47,11 @@ module.exports = {
           DEFAULT: "hsl(var(--card))",
           foreground: "hsl(var(--card-foreground))",
         },
+        // Aviation cockpit colors
+        'aviation-green': '#00FF00',
+        'aviation-yellow': '#FFD700',
+        'aviation-red': '#FF3333',
+        'aviation-amber': '#FF8C00',
       },
       borderRadius: {
         lg: "var(--radius)",
