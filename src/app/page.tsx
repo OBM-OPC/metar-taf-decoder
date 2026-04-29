@@ -3,7 +3,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import {
   fetchLiveMetar,
   fetchLiveTaf,
@@ -17,200 +16,55 @@ import {
 import {
   Wind, Eye, Cloud, Thermometer, Gauge, Search, Loader2, MapPin, AlertTriangle,
   ShieldAlert, Radar, Star, History, GitCompare, Navigation, ExternalLink,
+  ChevronDown, ChevronUp,
 } from 'lucide-react';
 
 type FallbackInfo = { requested: string; fallbackStation: string; distance: number } | null;
 
 function getWindDirection(degrees?: number | null) {
-  if (degrees === undefined || degrees === null || degrees < 0) return 'Variable';
-  const directions = ['N', 'NNE', 'NE', 'ENE', 'E', 'ESE', 'SE', 'SSE', 'S', 'SSW', 'SW', 'WSW', 'W', 'WNW', 'NW', 'NNW'];
-  return directions[Math.round(degrees / 22.5) % 16];
+  if (degrees === undefined || degrees === null || degrees < 0) return 'VRB';
+  const d = ['N','NNE','NE','ENE','E','ESE','SE','SSE','S','SSW','SW','WSW','W','WNW','NW','NNW'];
+  return d[Math.round(degrees / 22.5) % 16];
 }
 
-function visMeters(vis: number | string | null | undefined) {
+function visM(vis: number | string | null | undefined) {
   if (vis === null || vis === undefined) return 9999;
-  if (typeof vis === 'string') {
-    if (vis === '6+') return 9999;
-    const n = parseFloat(vis);
-    if (!Number.isNaN(n)) return Math.round(n * 1609.34);
-    return 9999;
-  }
+  if (typeof vis === 'string') { if (vis === '6+') return 9999; const n = parseFloat(vis); return Number.isNaN(n) ? 9999 : Math.round(n * 1609.34); }
   return vis > 100 ? Math.round(vis) : Math.round(vis * 1609.34);
 }
 
 function getFlightCategory(metar: LiveMetar | null) {
-  if (!metar) return { cat: 'N/A', color: 'text-muted-foreground border-[hsl(217,33%,25%)]' };
-  const visM = visMeters(metar.visib);
-  const ceiling = [...(metar.clouds || [])]
-    .filter((c) => ['BKN', 'OVC'].includes(c.cover))
-    .sort((a, b) => a.base - b.base)[0]?.base ?? 99999;
-  if (ceiling < 500 || visM < 1609) return { cat: 'LIFR', color: 'text-red-400 bg-red-500/10 border-red-500/30' };
-  if (ceiling < 1000 || visM < 4828) return { cat: 'IFR', color: 'text-yellow-400 bg-yellow-500/10 border-yellow-500/30' };
-  if (ceiling < 3000 || visM < 8047) return { cat: 'MVFR', color: 'text-sky-400 bg-sky-500/10 border-sky-500/30' };
-  return { cat: 'VFR', color: 'text-green-400 bg-green-500/10 border-green-500/30' };
+  if (!metar) return { cat: 'N/A', color: 'text-muted-foreground', bg: '' };
+  const v = visM(metar.visib);
+  const c = [...(metar.clouds || [])].filter(x => ['BKN','OVC'].includes(x.cover)).sort((a,b) => a.base - b.base)[0]?.base ?? 99999;
+  if (c < 500 || v < 1609) return { cat: 'LIFR', color: 'text-red-400', bg: 'bg-red-500/10' };
+  if (c < 1000 || v < 4828) return { cat: 'IFR', color: 'text-yellow-400', bg: 'bg-yellow-500/10' };
+  if (c < 3000 || v < 8047) return { cat: 'MVFR', color: 'text-sky-400', bg: 'bg-sky-500/10' };
+  return { cat: 'VFR', color: 'text-green-400', bg: 'bg-green-500/10' };
 }
 
-function windComponent(metar: LiveMetar | null, runway: string) {
-  if (!metar || !runway || metar.wdir === undefined || metar.wdir < 0) return null;
-  const runwayNum = parseInt(runway.replace(/\D/g, ''), 10);
-  if (!runwayNum || runwayNum > 36) return null;
-  const runwayDir = runwayNum * 10;
-  let angleDiff = metar.wdir - runwayDir;
-  angleDiff = ((angleDiff + 540) % 360) - 180;
-  const rad = angleDiff * Math.PI / 180;
-  const headwind = Math.round(metar.wspd * Math.cos(rad));
-  const crosswind = Math.round(Math.abs(metar.wspd * Math.sin(rad)));
-  const tailwind = Math.max(0, -headwind);
-  return {
-    runwayDir,
-    headwind: Math.max(0, headwind),
-    tailwind,
-    crosswind,
-    crosswindDir: angleDiff > 0 ? 'rechts' : 'links',
-  };
+function windComp(metar: LiveMetar | null, rwy: string) {
+  if (!metar || !rwy || metar.wdir == null || metar.wdir < 0) return null;
+  const n = parseInt(rwy.replace(/\D/g, ''), 10);
+  if (!n || n > 36) return null;
+  const rd = n * 10;
+  let ad = ((metar.wdir - rd + 540) % 360) - 180;
+  const rad = ad * Math.PI / 180;
+  const hw = Math.round(metar.wspd * Math.cos(rad));
+  const cw = Math.round(Math.abs(metar.wspd * Math.sin(rad)));
+  return { hw: Math.max(0, hw), tw: Math.max(0, -hw), cw, cwd: ad > 0 ? 'R' : 'L' };
 }
 
-function windColor(speed: number, gust?: number | null) {
-  const max = gust || speed;
-  if (max >= 30) return 'text-aviation-red';
-  if (max >= 20) return 'text-aviation-amber';
-  return 'text-aviation-green';
-}
-
-function categoryColor(category: string) {
-  if (category === 'LIFR') return 'border-red-500/30';
-  if (category === 'IFR') return 'border-yellow-500/30';
-  if (category === 'MVFR') return 'border-sky-500/30';
-  return 'border-green-500/30';
-}
+function wc(s: number, g?: number | null) { const m = g || s; return m >= 30 ? 'text-red-400' : m >= 20 ? 'text-yellow-400' : 'text-green-400'; }
 
 function sigmetRegion(icao: string) {
-  const c = icao[0] || 'world';
-  if (['K', 'C', 'P'].includes(c)) return 'us';
-  if (['E', 'L', 'B', 'U'].includes(c)) return 'europe';
-  if (['R', 'V', 'W', 'Z', 'O', 'Y'].includes(c)) return 'asia';
-  if (['S'].includes(c)) return 'southamerica';
-  if (['D', 'F', 'G', 'H'].includes(c)) return 'africa';
+  const c = icao[0] || 'w';
+  if ('KCP'.includes(c)) return 'us';
+  if ('ELBU'.includes(c)) return 'europe';
+  if ('RVWOZY'.includes(c)) return 'asia';
+  if (c === 'S') return 'southamerica';
+  if ('DFGH'.includes(c)) return 'africa';
   return 'world';
-}
-
-function WindRose({ dir, speed }: { dir?: number | null; speed?: number | null }) {
-  const rotation = dir && dir >= 0 ? dir : 0;
-  const len = Math.min(28, 10 + (speed || 0));
-  return (
-    <svg viewBox="0 0 100 100" className="w-24 h-24 mx-auto mt-2">
-      <circle cx="50" cy="50" r="36" fill="none" stroke="currentColor" opacity="0.25" />
-      <text x="50" y="14" textAnchor="middle" fontSize="10" fill="currentColor">N</text>
-      <text x="50" y="96" textAnchor="middle" fontSize="10" fill="currentColor">S</text>
-      <text x="10" y="54" textAnchor="middle" fontSize="10" fill="currentColor">W</text>
-      <text x="90" y="54" textAnchor="middle" fontSize="10" fill="currentColor">E</text>
-      <g transform={`rotate(${rotation} 50 50)`}>
-        <line x1="50" y1="50" x2="50" y2={50 - len} stroke="currentColor" strokeWidth="3" />
-        <polygon points={`50,${50 - len - 6} 45,${50 - len + 4} 55,${50 - len + 4}`} fill="currentColor" />
-      </g>
-    </svg>
-  );
-}
-
-function MetarGrid({ metar, runway }: { metar: LiveMetar; runway: string }) {
-  const cat = getFlightCategory(metar);
-  const windComp = windComponent(metar, runway);
-  const visM = visMeters(metar.visib);
-  return (
-    <div className="space-y-6">
-      <Card className={`cockpit-display glow-border ${categoryColor(cat.cat)}`}>
-        <CardHeader>
-          <div className="flex items-center justify-between gap-4 flex-wrap">
-            <div>
-              <CardTitle className="text-3xl text-aviation-green font-mono tracking-wider">{metar.icaoId}</CardTitle>
-              <CardDescription className="text-muted-foreground font-mono mt-1">
-                {metar.name} · Beobachtung: {new Date(metar.reportTime).toLocaleString('de-DE', { hour: '2-digit', minute: '2-digit', day: '2-digit', month: '2-digit', timeZone: 'UTC' })} UTC
-              </CardDescription>
-            </div>
-            <div className={`px-3 py-2 rounded-md border font-mono font-bold ${cat.color}`}>{cat.cat}</div>
-          </div>
-        </CardHeader>
-      </Card>
-
-      <div className="grid md:grid-cols-2 xl:grid-cols-3 gap-4">
-        <Card className="cockpit-display scope-ring">
-          <CardHeader><CardTitle className="text-lg text-muted-foreground font-mono uppercase tracking-wider flex items-center gap-2"><Wind className="w-5 h-5" />Wind</CardTitle></CardHeader>
-          <CardContent>
-            <div className={`text-4xl font-bold font-mono ${windColor(metar.wspd, metar.wgst)}`}>{metar.wspd}<span className="text-lg text-muted-foreground ml-1">KT</span></div>
-            <div className="text-sm text-muted-foreground mt-2 font-mono">{getWindDirection(metar.wdir)} · {metar.wdir}°</div>
-            {metar.wgst ? <div className="text-sm text-aviation-amber mt-1 font-mono">Böen: {metar.wgst} KT</div> : null}
-            <div className="text-aviation-green"><WindRose dir={metar.wdir} speed={metar.wspd} /></div>
-          </CardContent>
-        </Card>
-
-        <Card className="cockpit-display scope-ring">
-          <CardHeader><CardTitle className="text-lg text-muted-foreground font-mono uppercase tracking-wider flex items-center gap-2"><Eye className="w-5 h-5" />Sicht</CardTitle></CardHeader>
-          <CardContent>
-            <div className={`text-4xl font-bold font-mono ${visM < 1000 ? 'text-aviation-red' : visM < 3000 ? 'text-aviation-amber' : 'text-aviation-green'}`}>{visM >= 9999 ? '10+' : (visM / 1000).toFixed(1)}<span className="text-lg text-muted-foreground ml-1">km</span></div>
-            <div className="text-sm text-muted-foreground mt-2 font-mono">{visM} m</div>
-          </CardContent>
-        </Card>
-
-        <Card className="cockpit-display scope-ring">
-          <CardHeader><CardTitle className="text-lg text-muted-foreground font-mono uppercase tracking-wider flex items-center gap-2"><Thermometer className="w-5 h-5" />Temp</CardTitle></CardHeader>
-          <CardContent>
-            <div className="text-4xl font-bold font-mono text-aviation-green">{metar.temp}°<span className="text-lg text-muted-foreground ml-1">C</span></div>
-            <div className="text-sm text-muted-foreground mt-2 font-mono">DP {metar.dewp}°C · Spread {(metar.temp - metar.dewp).toFixed(1)}°C</div>
-          </CardContent>
-        </Card>
-
-        <Card className="cockpit-display scope-ring">
-          <CardHeader><CardTitle className="text-lg text-muted-foreground font-mono uppercase tracking-wider flex items-center gap-2"><Gauge className="w-5 h-5" />QNH</CardTitle></CardHeader>
-          <CardContent>
-            <div className="text-4xl font-bold font-mono text-aviation-green">{metar.altim}<span className="text-lg text-muted-foreground ml-1">hPa</span></div>
-            <div className="text-sm text-muted-foreground mt-2 font-mono">{metar.altim > 1020 ? 'HIGH' : metar.altim < 1000 ? 'LOW' : 'STD'} PRESSURE</div>
-          </CardContent>
-        </Card>
-
-        <Card className="cockpit-display scope-ring xl:col-span-2">
-          <CardHeader><CardTitle className="text-lg text-muted-foreground font-mono uppercase tracking-wider flex items-center gap-2"><Cloud className="w-5 h-5" />Clouds</CardTitle></CardHeader>
-          <CardContent>
-            {!metar.clouds?.length ? <p className="text-muted-foreground font-mono">CAVOK / NO SIGNIFICANT CLOUDS</p> : (
-              <div className="space-y-2">
-                {metar.clouds.map((cloud, i) => (
-                  <div key={i} className="flex items-center justify-between border-b border-[hsl(217,33%,20%)] pb-2">
-                    <span className="font-medium text-aviation-green font-mono">{cloud.cover}</span>
-                    <span className="text-muted-foreground font-mono">{cloud.base} ft AGL</span>
-                  </div>
-                ))}
-              </div>
-            )}
-          </CardContent>
-        </Card>
-
-        {windComp && (
-          <Card className="cockpit-display scope-ring xl:col-span-3">
-            <CardHeader><CardTitle className="text-lg text-muted-foreground font-mono uppercase tracking-wider flex items-center gap-2"><Navigation className="w-5 h-5" />Runway Wind Calculator RWY {runway.toUpperCase()}</CardTitle></CardHeader>
-            <CardContent className="grid md:grid-cols-3 gap-4 font-mono">
-              <div className="p-3 rounded border border-[hsl(217,33%,20%)]">
-                <div className="text-sm text-muted-foreground">Headwind</div>
-                <div className="text-2xl text-aviation-green font-bold">{windComp.headwind} KT</div>
-              </div>
-              <div className={`p-3 rounded border ${windComp.crosswind > 25 ? 'border-red-500/30 text-red-400' : windComp.crosswind >= 15 ? 'border-yellow-500/30 text-yellow-400' : 'border-green-500/30 text-green-400'}`}>
-                <div className="text-sm opacity-80">Crosswind</div>
-                <div className="text-2xl font-bold">{windComp.crosswind} KT</div>
-                <div className="text-sm">von {windComp.crosswindDir}</div>
-              </div>
-              <div className={`p-3 rounded border ${windComp.tailwind > 5 ? 'border-red-500/30 text-red-400' : 'border-[hsl(217,33%,20%)] text-muted-foreground'}`}>
-                <div className="text-sm opacity-80">Tailwind</div>
-                <div className="text-2xl font-bold">{windComp.tailwind} KT</div>
-              </div>
-            </CardContent>
-          </Card>
-        )}
-      </div>
-
-      <Card className="cockpit-display glow-border">
-        <CardHeader><CardTitle className="text-lg text-muted-foreground font-mono uppercase tracking-wider">METAR Rohdaten</CardTitle></CardHeader>
-        <CardContent><code className="block bg-[hsl(222,47%,5%)] p-4 rounded-md font-mono text-sm text-aviation-green overflow-x-auto border border-[hsl(217,33%,20%)]">{metar.rawOb}</code></CardContent>
-      </Card>
-    </div>
-  );
 }
 
 export default function Home() {
@@ -227,208 +81,214 @@ export default function Home() {
   const [fallbackInfo, setFallbackInfo] = useState<FallbackInfo>(null);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+  const [showDetails, setShowDetails] = useState(false);
+  const [showCompare, setShowCompare] = useState(false);
 
   useEffect(() => {
     setFavorites(JSON.parse(localStorage.getItem('metar-favorites') || '[]'));
     setSearchHistory(JSON.parse(localStorage.getItem('metar-history') || '[]'));
   }, []);
 
-  const activeCategory = useMemo(() => getFlightCategory(liveMetar), [liveMetar]);
+  const cat = useMemo(() => getFlightCategory(liveMetar), [liveMetar]);
 
   const updateHistory = (icao: string) => {
-    const next = [icao, ...searchHistory.filter((h) => h !== icao)].slice(0, 10);
+    const next = [icao, ...searchHistory.filter(h => h !== icao)].slice(0, 10);
     setSearchHistory(next);
     localStorage.setItem('metar-history', JSON.stringify(next));
   };
 
   const toggleFavorite = (icao: string) => {
-    const next = favorites.includes(icao) ? favorites.filter((f) => f !== icao) : [...favorites, icao];
+    const next = favorites.includes(icao) ? favorites.filter(f => f !== icao) : [...favorites, icao];
     setFavorites(next);
     localStorage.setItem('metar-favorites', JSON.stringify(next));
   };
 
   const loadStation = async (icaoRaw?: string, compare = false) => {
     const icao = (icaoRaw || icaoInput).trim().toUpperCase();
-    if (icao.length !== 4 || !/^[A-Z]{4}$/.test(icao)) {
-      setError('Bitte einen gültigen 4-stelligen ICAO-Code eingeben (z.B. EDDF)');
-      return;
-    }
-    setLoading(true);
-    setError('');
+    if (icao.length !== 4 || !/^[A-Z]{4}$/.test(icao)) { setError('Ungültiger ICAO-Code'); return; }
+    setLoading(true); setError('');
     try {
       const metar = await fetchLiveMetar(icao);
-      if (!metar) {
-        setError('Keine METAR-Daten gefunden');
-        return;
+      if (!metar) { setError('Keine METAR-Daten gefunden'); return; }
+      if (compare) { setCompareMetar(metar); setShowCompare(true); }
+      else {
+        setLiveMetar(metar); updateHistory(icao);
+        const [taf, hist, sig] = await Promise.all([fetchLiveTaf(icao), fetchMetarHistory(icao), fetchSigmets(icao, metar.lat, metar.lon)]);
+        setLiveTaf(taf); setHistoryMetars(hist); setSigmets(sig);
       }
-      if (compare) {
-        setCompareMetar(metar);
-      } else {
-        setLiveMetar(metar);
-        updateHistory(icao);
-        const [taf, metarHistory, sigmetData] = await Promise.all([
-          fetchLiveTaf(icao),
-          fetchMetarHistory(icao),
-          fetchSigmets(icao, metar.lat, metar.lon),
-        ]);
-        setLiveTaf(taf);
-        setHistoryMetars(metarHistory);
-        setSigmets(sigmetData);
-      }
-    } catch {
-      setError('Fehler beim Abrufen der Daten. Bitte später erneut versuchen.');
-    } finally {
-      setLoading(false);
-    }
+    } catch { setError('Fehler beim Abrufen.'); } finally { setLoading(false); }
   };
+
+  const vm = liveMetar ? visM(liveMetar.visib) : 0;
+  const wComp = windComp(liveMetar, runway);
 
   return (
     <div className="min-h-screen radar-grid">
       <header className="border-b border-[hsl(220,16%,20%)] bg-[hsl(220,24%,10%)]/88 backdrop-blur-sm">
-        <div className="mx-auto max-w-6xl px-4 py-4 flex items-center gap-3">
-          <Radar className="w-6 h-6 text-aviation-green" />
-          <span className="font-bold text-xl text-foreground tracking-wider uppercase" style={{ fontFamily: "'Roboto Mono', ui-monospace, monospace" }}>CLOUDLINE</span>
-          <div className="ml-auto flex items-center gap-2">
-            <div className="w-2 h-2 rounded-full bg-aviation-green animate-pulse" />
-            <span className="text-xs text-muted-foreground font-mono">SYS ONLINE</span>
-          </div>
+        <div className="mx-auto max-w-5xl px-4 py-3 flex items-center gap-3">
+          <Radar className="w-5 h-5 text-emerald-400" />
+          <span className="font-bold text-lg text-foreground tracking-wider uppercase font-mono">CLOUDLINE</span>
+          <div className="ml-auto flex items-center gap-2"><div className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" /><span className="text-[10px] text-muted-foreground font-mono">LIVE</span></div>
         </div>
       </header>
 
-      <main className="mx-auto max-w-6xl px-4 py-8 space-y-6">
-        <div className="text-center">
-          <h1 className="text-4xl font-bold text-foreground mb-2 tracking-tight crt-text">Cloudline</h1>
-          <p className="text-muted-foreground font-mono text-sm">METAR · TAF · FLIGHT WEATHER FOR EVERY AIRFIELD WORLDWIDE</p>
+      <main className="mx-auto max-w-5xl px-4 py-6 space-y-4">
+        {/* Search */}
+        <div className="flex gap-2 flex-wrap">
+          <Input placeholder="ICAO" value={icaoInput} onChange={e => setIcaoInput(e.target.value.toUpperCase())} onKeyDown={e => e.key === 'Enter' && loadStation()} className="font-mono text-base h-10 uppercase w-28 bg-[hsl(220,24%,11%)] border-[hsl(220,16%,20%)] text-foreground" maxLength={4} />
+          <Input placeholder="Compare" value={compareInput} onChange={e => setCompareInput(e.target.value.toUpperCase())} onKeyDown={e => e.key === 'Enter' && loadStation(compareInput, true)} className="font-mono text-base h-10 uppercase w-28 bg-[hsl(220,24%,11%)] border-[hsl(220,16%,20%)] text-foreground" maxLength={4} />
+          <Input placeholder="RWY" value={runway} onChange={e => setRunway(e.target.value.toUpperCase())} className="font-mono text-base h-10 uppercase w-20 bg-[hsl(220,24%,11%)] border-[hsl(220,16%,20%)] text-foreground" maxLength={3} />
+          <Button onClick={() => loadStation()} disabled={loading} className="h-10 bg-emerald-500 text-slate-950 hover:bg-emerald-400 font-mono text-sm px-4">{loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <><Search className="w-3.5 h-3.5 mr-1" />GO</>}</Button>
         </div>
 
-        <Card className="cockpit-display glow-border">
-          <CardContent className="p-6 space-y-4">
-            <div className="grid lg:grid-cols-[1fr_1fr_180px_180px_150px] gap-2">
-              <Input placeholder="ICAO (EDDF)" value={icaoInput} onChange={(e) => setIcaoInput(e.target.value.toUpperCase())} onKeyDown={(e) => e.key === 'Enter' && loadStation()} className="font-mono text-lg h-12 uppercase bg-[hsl(222,47%,8%)] border-[hsl(217,33%,25%)] text-aviation-green" maxLength={4} />
-              <Input placeholder="Vergleich (EGLL)" value={compareInput} onChange={(e) => setCompareInput(e.target.value.toUpperCase())} onKeyDown={(e) => e.key === 'Enter' && loadStation(compareInput, true)} className="font-mono text-lg h-12 uppercase bg-[hsl(222,47%,8%)] border-[hsl(217,33%,25%)] text-aviation-green" maxLength={4} />
-              <Input placeholder="Runway 27" value={runway} onChange={(e) => setRunway(e.target.value.toUpperCase())} className="font-mono text-lg h-12 uppercase bg-[hsl(222,47%,8%)] border-[hsl(217,33%,25%)] text-aviation-green" maxLength={3} />
-              <Button onClick={() => loadStation()} disabled={loading} className="h-12 bg-emerald-500 text-slate-950 hover:bg-emerald-400 font-mono uppercase tracking-wider">{loading ? <Loader2 className="w-5 h-5 animate-spin" /> : <><Search className="w-4 h-4 mr-2" />Abrufen</>}</Button>
-              <Button onClick={() => loadStation(compareInput, true)} disabled={loading || !compareInput} className="h-12 bg-[hsl(220,18%,16%)] text-foreground border border-[hsl(220,16%,24%)] hover:bg-[hsl(220,18%,20%)] font-mono uppercase tracking-wider"><GitCompare className="w-4 h-4 mr-2" />Vergleich</Button>
-            </div>
+        {/* Quick chips */}
+        {(favorites.length > 0 || searchHistory.length > 0) && (
+          <div className="flex flex-wrap gap-1.5 text-xs font-mono">
+            {favorites.map(f => <button key={f} onClick={() => { setIcaoInput(f); loadStation(f); }} className="px-2 py-0.5 rounded border border-yellow-500/30 text-yellow-300 bg-yellow-500/10">★ {f}</button>)}
+            {searchHistory.filter(h => !favorites.includes(h)).slice(0, 5).map(h => <button key={h} onClick={() => { setIcaoInput(h); loadStation(h); }} className="px-2 py-0.5 rounded border border-[hsl(220,16%,24%)] text-muted-foreground bg-[hsl(220,24%,11%)]">{h}</button>)}
+          </div>
+        )}
 
-            {(favorites.length > 0 || searchHistory.length > 0) && (
-              <div className="grid md:grid-cols-2 gap-4 text-sm font-mono">
-                <div>
-                  <div className="text-muted-foreground mb-2">Favoriten</div>
-                  <div className="flex flex-wrap gap-2">
-                    {favorites.map((fav) => <button key={fav} onClick={() => { setIcaoInput(fav); loadStation(fav); }} className="px-2 py-1 rounded border border-yellow-500/30 text-yellow-300 bg-yellow-500/10">{fav}</button>)}
-                  </div>
-                </div>
-                <div>
-                  <div className="text-muted-foreground mb-2">Letzte Suchen</div>
-                  <div className="flex flex-wrap gap-2">
-                    {searchHistory.map((item) => <button key={item} onClick={() => { setIcaoInput(item); loadStation(item); }} className="px-2 py-1 rounded border border-[hsl(217,33%,25%)] text-aviation-green bg-[hsl(222,47%,8%)]">{item}</button>)}
-                  </div>
-                </div>
-              </div>
-            )}
+        {error && <div className="flex items-center gap-2 text-red-400 text-xs font-mono bg-red-500/10 border border-red-500/20 p-2 rounded"><AlertTriangle className="w-3 h-3" />{error}</div>}
 
-            {error && <div className="flex items-center gap-2 text-aviation-red text-sm font-mono bg-aviation-red/10 border border-aviation-red/30 p-3 rounded-md"><AlertTriangle className="w-4 h-4" />{error}</div>}
-          </CardContent>
-        </Card>
+        {fallbackInfo && <div className="flex items-center gap-2 text-amber-400 text-xs font-mono bg-amber-500/10 border border-amber-500/20 p-2 rounded"><MapPin className="w-3 h-3" />Fallback: {fallbackInfo.requested} → {fallbackInfo.fallbackStation} ({fallbackInfo.distance.toFixed(1)} NM)</div>}
 
-        <Card className="safety-banner border-amber-500/30">
-          <CardContent className="p-4 flex items-start gap-3">
-            <ShieldAlert className="w-5 h-5 text-amber-500 mt-0.5" />
-            <div>
-              <p className="font-bold text-amber-500 text-sm font-mono uppercase tracking-wider">Sicherheitshinweis</p>
-              <p className="text-sm text-amber-400/80 mt-1 font-mono leading-relaxed">Nur zu Informationszwecken. Für flugbetriebliche Entscheidungen immer offizielle Quellen verwenden.</p>
-            </div>
-          </CardContent>
-        </Card>
-
+        {/* === MAIN METAR DATA — compact, no scroll needed === */}
         {liveMetar && (
-          <>
-            <div className="flex items-center justify-between gap-4 font-mono text-sm">
-              <div className={`px-3 py-2 rounded-md border ${activeCategory.color}`}>Kategorie: {activeCategory.cat}</div>
-              <div className="flex gap-2">
-                <Button variant="outline" onClick={() => toggleFavorite(liveMetar.icaoId)} className="border-yellow-500/30 text-yellow-300 bg-yellow-500/10 hover:bg-yellow-500/20">
-                  <Star className="w-4 h-4 mr-2" />{favorites.includes(liveMetar.icaoId) ? 'Favorit entfernt' : 'Favorit'}
-                </Button>
-                <a className="inline-flex items-center px-3 py-2 rounded-md border border-sky-500/30 text-sky-300 bg-sky-500/10 hover:bg-sky-500/20" href={`https://aviationweather.gov/sigmet/?region=${sigmetRegion(liveMetar.icaoId)}`} target="_blank">
-                  SIGMET <ExternalLink className="w-4 h-4 ml-2" />
-                </a>
+          <div className="space-y-3">
+            {/* Header row: ICAO + name + category + favorite + sigmet */}
+            <div className="flex items-center gap-3 flex-wrap">
+              <span className="text-2xl font-bold font-mono text-foreground tracking-wider">{liveMetar.icaoId}</span>
+              <span className={`px-2 py-0.5 rounded text-xs font-mono font-bold ${cat.color} ${cat.bg} border border-current/20`}>{cat.cat}</span>
+              <span className="text-muted-foreground font-mono text-xs">{liveMetar.name} · {new Date(liveMetar.reportTime).toLocaleString('de-DE', { hour: '2-digit', minute: '2-digit', day: '2-digit', month: '2-digit', timeZone: 'UTC' })} UTC</span>
+              <button onClick={() => toggleFavorite(liveMetar.icaoId)} className="ml-auto text-xs font-mono">{favorites.includes(liveMetar.icaoId) ? '★' : '☆'}</button>
+              <a href={`https://aviationweather.gov/sigmet/?region=${sigmetRegion(liveMetar.icaoId)}`} target="_blank" className="text-xs font-mono text-sky-400 hover:underline flex items-center gap-1">SIGMET <ExternalLink className="w-3 h-3" /></a>
+            </div>
+
+            {/* KPI row: all core data in one line */}
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-2">
+              <div className="rounded-md border border-[hsl(220,16%,20%)] bg-[hsl(220,24%,11%)] p-2">
+                <div className="text-[10px] text-muted-foreground font-mono uppercase">Wind</div>
+                <div className={`text-lg font-bold font-mono ${wc(liveMetar.wspd, liveMetar.wgst)}`}>{liveMetar.wdir >= 0 ? `${liveMetar.wdir}°` : 'VRB'} / {liveMetar.wspd} KT</div>
+                {liveMetar.wgst ? <div className="text-[10px] text-yellow-400 font-mono">G{liveMetar.wgst}</div> : null}
+              </div>
+              <div className="rounded-md border border-[hsl(220,16%,20%)] bg-[hsl(220,24%,11%)] p-2">
+                <div className="text-[10px] text-muted-foreground font-mono uppercase">Sicht</div>
+                <div className={`text-lg font-bold font-mono ${vm < 1000 ? 'text-red-400' : vm < 3000 ? 'text-yellow-400' : 'text-green-400'}`}>{vm >= 9999 ? '10+ km' : `${(vm/1000).toFixed(1)} km`}</div>
+                <div className="text-[10px] text-muted-foreground font-mono">{vm} m</div>
+              </div>
+              <div className="rounded-md border border-[hsl(220,16%,20%)] bg-[hsl(220,24%,11%)] p-2">
+                <div className="text-[10px] text-muted-foreground font-mono uppercase">Temp</div>
+                <div className="text-lg font-bold font-mono text-green-400">{liveMetar.temp}°C</div>
+                <div className="text-[10px] text-muted-foreground font-mono">DP {liveMetar.dewp}°</div>
+              </div>
+              <div className="rounded-md border border-[hsl(220,16%,20%)] bg-[hsl(220,24%,11%)] p-2">
+                <div className="text-[10px] text-muted-foreground font-mono uppercase">QNH</div>
+                <div className="text-lg font-bold font-mono text-green-400">{liveMetar.altim} hPa</div>
+                <div className="text-[10px] text-muted-foreground font-mono">{liveMetar.altim > 1020 ? 'HIGH' : liveMetar.altim < 1000 ? 'LOW' : 'STD'}</div>
+              </div>
+              <div className="rounded-md border border-[hsl(220,16%,20%)] bg-[hsl(220,24%,11%)] p-2">
+                <div className="text-[10px] text-muted-foreground font-mono uppercase">Clouds</div>
+                <div className="text-sm font-bold font-mono text-green-400">{!liveMetar.clouds?.length ? 'CAVOK' : liveMetar.clouds.map(c => `${c.cover} ${c.base}`).join(' · ')}</div>
+              </div>
+              <div className="rounded-md border border-[hsl(220,16%,20%)] bg-[hsl(220,24%,11%)] p-2">
+                <div className="text-[10px] text-muted-foreground font-mono uppercase">WX</div>
+                <div className="text-sm font-bold font-mono text-green-400">{liveMetar.wxString || '—'}</div>
               </div>
             </div>
 
-            {fallbackInfo && (
-              <Card className="bg-amber-950/30 border-amber-500/30">
-                <CardContent className="p-4 flex items-start gap-3">
-                  <MapPin className="w-5 h-5 text-amber-500 mt-0.5" />
-                  <div className="font-mono text-sm text-amber-300">Fallback aktiv: {fallbackInfo.requested} → {fallbackInfo.fallbackStation} ({fallbackInfo.distance.toFixed(1)} NM)</div>
-                </CardContent>
-              </Card>
+            {/* Runway component — inline if set */}
+            {wComp && (
+              <div className="grid grid-cols-3 gap-2 font-mono text-sm">
+                <div className="rounded-md border border-[hsl(220,16%,20%)] bg-[hsl(220,24%,11%)] p-2 text-center">
+                  <div className="text-[10px] text-muted-foreground">HW</div>
+                  <div className="text-base font-bold text-green-400">{wComp.hw} KT</div>
+                </div>
+                <div className={`rounded-md border p-2 text-center ${wComp.cw > 25 ? 'border-red-500/30 text-red-400' : wComp.cw >= 15 ? 'border-yellow-500/30 text-yellow-400' : 'border-green-500/30 text-green-400'}`}>
+                  <div className="text-[10px] opacity-70">XW {wComp.cwd}</div>
+                  <div className="text-base font-bold">{wComp.cw} KT</div>
+                </div>
+                <div className={`rounded-md border p-2 text-center ${wComp.tw > 5 ? 'border-red-500/30 text-red-400' : 'border-[hsl(220,16%,20%)] text-muted-foreground'}`}>
+                  <div className="text-[10px] opacity-70">TW</div>
+                  <div className="text-base font-bold">{wComp.tw} KT</div>
+                </div>
+              </div>
             )}
 
-            <div className={compareMetar ? 'grid xl:grid-cols-2 gap-6' : 'grid grid-cols-1'}>
-              <MetarGrid metar={liveMetar} runway={runway} />
-              {compareMetar ? <MetarGrid metar={compareMetar} runway={runway} /> : null}
+            {/* Raw METAR — one line */}
+            <div className="rounded-md border border-[hsl(220,16%,20%)] bg-[hsl(220,24%,11%)] px-3 py-2">
+              <code className="font-mono text-xs text-green-400">{liveMetar.rawOb}</code>
             </div>
 
-            <div className="grid xl:grid-cols-2 gap-6">
-              <Card className="cockpit-display glow-border">
-                <CardHeader><CardTitle className="text-lg text-muted-foreground font-mono uppercase tracking-wider">TAF</CardTitle><CardDescription className="font-mono">{liveTaf ? `${liveTaf.icaoId} gültig ${new Date(liveTaf.validTimeFrom).toLocaleString('de-DE')} bis ${new Date(liveTaf.validTimeTo).toLocaleString('de-DE')}` : 'Kein TAF verfügbar'}</CardDescription></CardHeader>
-                <CardContent className="space-y-3">
+            {/* Compare station — compact inline */}
+            {showCompare && compareMetar && (
+              <div className="rounded-md border border-sky-500/20 bg-sky-500/5 p-3 space-y-2">
+                <div className="flex items-center gap-2"><span className="font-bold font-mono text-foreground">{compareMetar.icaoId}</span><span className="text-xs text-muted-foreground font-mono">{compareMetar.name}</span><button onClick={() => { setCompareMetar(null); setShowCompare(false); }} className="ml-auto text-xs text-muted-foreground">✕</button></div>
+                <div className="grid grid-cols-3 sm:grid-cols-6 gap-2 font-mono text-xs">
+                  <div><span className="text-muted-foreground">Wind </span><span className={wc(compareMetar.wspd, compareMetar.wgst)}>{compareMetar.wdir}°/{compareMetar.wspd}KT</span></div>
+                  <div><span className="text-muted-foreground">Vis </span><span className="text-green-400">{visM(compareMetar.visib)}m</span></div>
+                  <div><span className="text-muted-foreground">T </span><span className="text-green-400">{compareMetar.temp}°C</span></div>
+                  <div><span className="text-muted-foreground">QNH </span><span className="text-green-400">{compareMetar.altim}</span></div>
+                  <div><span className="text-muted-foreground">Cloud </span><span className="text-green-400">{!compareMetar.clouds?.length ? 'CAVOK' : compareMetar.clouds.map(c => `${c.cover}${c.base}`).join(' ')}</span></div>
+                  <div><span className="text-muted-foreground">WX </span><span className="text-green-400">{compareMetar.wxString || '—'}</span></div>
+                </div>
+              </div>
+            )}
+
+            {/* Expandable details toggle */}
+            <button onClick={() => setShowDetails(!showDetails)} className="flex items-center gap-1 text-xs text-muted-foreground font-mono hover:text-foreground transition-colors">
+              {showDetails ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
+              {showDetails ? 'Weniger anzeigen' : 'TAF · Verlauf · Karte · SIGMET'}
+            </button>
+
+            {showDetails && (
+              <div className="space-y-3">
+                {/* TAF */}
+                <div className="rounded-md border border-[hsl(220,16%,20%)] bg-[hsl(220,24%,11%)] p-3">
+                  <div className="text-xs font-mono text-muted-foreground mb-2">TAF {liveTaf ? `${liveTaf.icaoId} ${new Date(liveTaf.validTimeFrom).toLocaleString('de-DE',{day:'2-digit',hour:'2-digit',minute:'2-digit'})}–${new Date(liveTaf.validTimeTo).toLocaleString('de-DE',{day:'2-digit',hour:'2-digit',minute:'2-digit'})}` : ''}</div>
                   {liveTaf?.fcsts?.length ? liveTaf.fcsts.map((f, i) => {
-                    const category = getFlightCategory({ ...liveMetar, visib: f.visib ?? liveMetar?.visib ?? 9999, clouds: (f.skyCover || []).map((cover, idx) => ({ cover, base: f.base?.[idx] || 0 })) } as LiveMetar);
+                    const fc = getFlightCategory({ ...liveMetar, visib: f.visib ?? liveMetar.visib, clouds: (f.skyCover||[]).map((c,idx)=>({cover:c,base:f.base?.[idx]||0})) } as LiveMetar);
                     return (
-                      <div key={i} className={`rounded-md border p-3 font-mono text-sm ${category.color}`}>
-                        <div className="font-bold mb-1">{new Date(f.timeFrom).toLocaleString('de-DE', { day: '2-digit', hour: '2-digit', minute: '2-digit' })} → {new Date(f.timeTo).toLocaleString('de-DE', { day: '2-digit', hour: '2-digit', minute: '2-digit' })}</div>
-                        <div>Wind: {f.windDir ?? 'VRB'}° / {f.windSpd ?? '-'} KT {f.windGust ? `G${f.windGust}` : ''}</div>
-                        <div>Sicht: {visMeters(f.visib)} m</div>
-                        <div>Weather: {f.wxString || '—'}</div>
-                        <div>Clouds: {(f.skyCover || []).join(', ') || '—'}</div>
+                      <div key={i} className={`rounded border p-2 mb-1 font-mono text-xs ${fc.color} ${fc.bg} border-current/20`}>
+                        <span className="font-bold">{new Date(f.timeFrom).toLocaleString('de-DE',{day:'2-digit',hour:'2-digit',minute:'2-digit'})}→{new Date(f.timeTo).toLocaleString('de-DE',{day:'2-digit',hour:'2-digit',minute:'2-digit'})}</span>
+                        {' '}W:{f.windDir??'VRB'}°/{f.windSpd??'-'}KT{f.windGust?`G${f.windGust}`:''} V:{visM(f.visib)}m WX:{f.wxString||'—'} CLD:{(f.skyCover||[]).join(' ')||'—'}
                       </div>
                     );
-                  }) : <p className="text-muted-foreground font-mono text-sm">Noch kein TAF geladen.</p>}
-                </CardContent>
-              </Card>
+                  }) : <p className="text-xs font-mono text-muted-foreground">Kein TAF</p>}
+                </div>
 
-              <Card className="cockpit-display glow-border">
-                <CardHeader><CardTitle className="text-lg text-muted-foreground font-mono uppercase tracking-wider flex items-center gap-2"><History className="w-5 h-5" />Letzte METARs</CardTitle></CardHeader>
-                <CardContent className="space-y-3">
-                  {historyMetars.length ? historyMetars.map((item) => (
-                    <div key={item.metar_id} className="rounded-md border border-[hsl(217,33%,20%)] p-3 font-mono text-sm">
-                      <div className="text-aviation-green font-bold">{new Date(item.reportTime).toLocaleString('de-DE', { hour: '2-digit', minute: '2-digit', day: '2-digit' })} UTC</div>
-                      <div>Wind {item.wdir}°/{item.wspd}KT · Temp {item.temp}°C · QNH {item.altim} hPa</div>
-                      <div className="text-muted-foreground truncate">{item.rawOb}</div>
+                {/* History */}
+                <div className="rounded-md border border-[hsl(220,16%,20%)] bg-[hsl(220,24%,11%)] p-3">
+                  <div className="text-xs font-mono text-muted-foreground mb-2">Verlauf (24h)</div>
+                  {historyMetars.length ? historyMetars.map(h => (
+                    <div key={h.metar_id} className="text-xs font-mono text-muted-foreground py-1 border-b border-[hsl(220,16%,18%)] last:border-0">
+                      <span className="text-green-400">{new Date(h.reportTime).toLocaleString('de-DE',{hour:'2-digit',minute:'2-digit'})}</span>
+                      {' '}W{h.wdir}°/{h.wspd}KT T{h.temp}° Q{h.altim}
                     </div>
-                  )) : <p className="text-muted-foreground font-mono text-sm">Keine Verlaufdaten.</p>}
-                </CardContent>
-              </Card>
-            </div>
+                  )) : <p className="text-xs font-mono text-muted-foreground">—</p>}
+                </div>
 
-            <div className="grid xl:grid-cols-2 gap-6">
-              <Card className="cockpit-display glow-border">
-                <CardHeader><CardTitle className="text-lg text-muted-foreground font-mono uppercase tracking-wider">Karte</CardTitle></CardHeader>
-                <CardContent>
-                  <iframe title="map" src={`https://www.openstreetmap.org/export/embed.html?bbox=${liveMetar.lon - 0.1},${liveMetar.lat - 0.1},${liveMetar.lon + 0.1},${liveMetar.lat + 0.1}&layer=mapnik&marker=${liveMetar.lat},${liveMetar.lon}`} style={{ width: '100%', height: 320, border: 'none' }} />
-                </CardContent>
-              </Card>
-
-              <Card className="cockpit-display glow-border">
-                <CardHeader><CardTitle className="text-lg text-muted-foreground font-mono uppercase tracking-wider">SIGMET / Alerts</CardTitle></CardHeader>
-                <CardContent className="space-y-3 font-mono text-sm">
-                  {sigmets.length ? sigmets.slice(0, 5).map((s, i) => (
-                    <div key={i} className="rounded-md border border-red-500/30 bg-red-500/10 p-3 text-red-300">{s.rawAirSigmet}</div>
-                  )) : <p className="text-muted-foreground">Keine SIGMETs im lokalen BBOX gefunden.</p>}
-                </CardContent>
-              </Card>
-            </div>
-          </>
+                {/* Map + SIGMET */}
+                <div className="grid md:grid-cols-2 gap-3">
+                  <div className="rounded-md border border-[hsl(220,16%,20%)] bg-[hsl(220,24%,11%)] overflow-hidden">
+                    <iframe title="map" src={`https://www.openstreetmap.org/export/embed.html?bbox=${liveMetar.lon-0.1},${liveMetar.lat-0.1},${liveMetar.lon+0.1},${liveMetar.lat+0.1}&layer=mapnik&marker=${liveMetar.lat},${liveMetar.lon}`} style={{width:'100%',height:200,border:'none'}} />
+                  </div>
+                  <div className="rounded-md border border-[hsl(220,16%,20%)] bg-[hsl(220,24%,11%)] p-3">
+                    <div className="text-xs font-mono text-muted-foreground mb-2">SIGMET</div>
+                    {sigmets.length ? sigmets.slice(0,3).map((s,i) => <div key={i} className="text-xs font-mono text-red-400 mb-1">{s.rawAirSigmet}</div>) : <p className="text-xs font-mono text-muted-foreground">Keine aktiven SIGMETs</p>}
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
         )}
+
+        {/* Disclaimer */}
+        <div className="text-[10px] text-amber-500/60 font-mono">⚠ Nur zu Informationszwecken. Immer offizielle Quellen für flugbetriebliche Entscheidungen verwenden.</div>
       </main>
 
-      <footer className="border-t border-[hsl(220,16%,20%)] mt-12 py-6">
-        <div className="mx-auto max-w-6xl px-4 text-center text-xs text-muted-foreground font-mono">
-          <p>METAR & TAF Decoder · Datenquelle: Aviation Weather Center</p>
-          <p className="mt-1">Nicht für flugbetriebliche Zwecke geeignet · Always consult official sources</p>
-        </div>
+      <footer className="border-t border-[hsl(220,16%,20%)] py-3">
+        <div className="mx-auto max-w-5xl px-4 text-center text-[10px] text-muted-foreground font-mono">Cloudline · Daten: Aviation Weather Center · Not for flight planning</div>
       </footer>
     </div>
   );
