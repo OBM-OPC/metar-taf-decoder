@@ -2,204 +2,215 @@ import type { Config } from "@netlify/functions";
 import { readFileSync } from "fs";
 import { join } from "path";
 
-// ── Types ───────────────────────────────────────────────────────────────────
+// ---------------------------------------------------------------------------
+// Types
+// ---------------------------------------------------------------------------
 
-interface CheckResult {
+type CheckStatus = "ok" | "degraded" | "error";
+
+interface HealthCheck {
   name: string;
-  status: "ok" | "degraded" | "error";
+  status: CheckStatus;
   message: string;
-  durationMs: number;
+  details?: Record<string, unknown>;
 }
 
 interface HealthResponse {
-  status: "ok" | "degraded" | "error";
+  status: CheckStatus;
   timestamp: string;
   version: string;
-  checks: CheckResult[];
+  checks: HealthCheck[];
 }
 
-// ── Helper: Overall status from individual checks ────────────────────────────
-
-function deriveOverallStatus(checks: CheckResult[]): HealthResponse["status"] {
-  if (checks.some((c) => c.status === "error")) return "error";
-  if (checks.some((c) => c.status === "degraded")) return "degraded";
-  return "ok";
+interface PackageJson {
+  version?: string;
 }
 
-// ── Checks ─────────────────────────────────────────────────────────────────
+interface StationRecord {
+  lat: number;
+  lon: number;
+  name: string;
+  elev: number;
+}
 
-/**
- * Check 1: Is the aviationweather.gov API reachable?
- */
-async function checkApiReachable(): Promise<CheckResult> {
-  const start = Date.now();
+// ---------------------------------------------------------------------------
+// Constants
+// ---------------------------------------------------------------------------
+
+const AVIATION_WEATHER_API = "https://aviationweather.gov/api/data/metar";
+const TEST_ICAO = "EDDH"; // Hamburg — stable, well-known ICAO code
+const REQUEST_TIMEOUT_MS = 8_000;
+
+// ---------------------------------------------------------------------------
+// Helpers
+// ---------------------------------------------------------------------------
+
+function corsHeaders(): Record<string, string> {
+  return {
+    "Access-Control-Allow-Origin": "*",
+    "Access-Control-Allow-Methods": "GET, OPTIONS",
+    "Access-Control-Allow-Headers": "Content-Type",
+  };
+}
+
+function jsonResponse(body: HealthResponse, status = 200): Response {
+  return new Response(JSON.stringify(body, null, 2), {
+    status,
+    headers: {
+      "Content-Type": "application/json",
+      ...corsHeaders(),
+    },
+  });
+}
+
+function readPackageVersion(): string {
   try {
-    const response = await fetch(
-      "https://aviationweather.gov/api/data/metar?ids=EDDB&format=json&taf=false",
-      {
-        headers: { Accept: "application/json" },
-        signal: AbortSignal.timeout(10000),
-      }
-    );
+    const packagePath = join(process.cwd(), "package.json");
+    const raw = readFileSync(packagePath, "utf-8");
+    const parsed = JSON.parse(raw) as PackageJson;
+    return parsed.version ?? "unknown";
+  } catch (e) {
+    console.warn("Could not read package.json version:", e);
+    return "unknown";
+  }
+}
+
+function loadStationsDatabase(): Record<string, StationRecord> {
+  try {
+    const stationsPath = join(__dirname, "stations.json");
+    const raw = readFileSync(stationsPath, "utf-8");
+    return JSON.parse(raw) as Record<string, StationRecord>;
+  } catch (e) {
+    console.warn("Could not load local stations database:", e);
+    return {};
+  }
+}
+
+async function checkAviationWeatherApi(): Promise<HealthCheck> {
+  try {
+    const url = `${AVIATION_WEATHER_API}?ids=${TEST_ICAO}&format=json&taf=false`;
+    const response = await fetch(url, {
+      headers: { Accept: "application/json" },
+      signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
+    });
 
     if (!response.ok) {
       return {
-        name: "aviationweather-api",
-        status: "degraded",
-        message: `API responded with status ${response.status}`,
-        durationMs: Date.now() - start,
+        name: "aviationweather_api",
+        status: "error",
+        message: `AviationWeather API returned HTTP ${response.status}`,
+        details: { statusCode: response.status, url },
       };
     }
 
     const text = await response.text();
     if (!text || !text.trim()) {
       return {
-        name: "aviationweather-api",
+        name: "aviationweather_api",
         status: "degraded",
-        message: "API returned empty response",
-        durationMs: Date.now() - start,
+        message: "AviationWeather API reachable but returned empty response",
+        details: { url },
       };
     }
 
-    const data = JSON.parse(text);
-    if (!Array.isArray(data) || data.length === 0) {
+    const data = JSON.parse(text) as unknown[];
+    if (!Array.isArray(data)) {
       return {
-        name: "aviationweather-api",
+        name: "aviationweather_api",
         status: "degraded",
-        message: "API returned unexpected data format",
-        durationMs: Date.now() - start,
+        message: "AviationWeather API returned unexpected data shape",
+        details: { url },
       };
     }
 
     return {
-      name: "aviationweather-api",
+      name: "aviationweather_api",
       status: "ok",
-      message: `API reachable, returned ${data.length} METAR record(s)`,
-      durationMs: Date.now() - start,
+      message: `AviationWeather API reachable (${data.length} METAR record(s) for ${TEST_ICAO})`,
+      details: { url, recordCount: data.length },
     };
-  } catch (err: any) {
+  } catch (err) {
+    const errorMessage = err instanceof Error ? err.message : String(err);
+    console.error("AviationWeather API health check failed:", err);
     return {
-      name: "aviationweather-api",
+      name: "aviationweather_api",
       status: "error",
-      message: err?.message || String(err),
-      durationMs: Date.now() - start,
+      message: `AviationWeather API unreachable: ${errorMessage}`,
+      details: { url: `${AVIATION_WEATHER_API}?ids=${TEST_ICAO}&format=json&taf=false` },
     };
   }
 }
 
-/**
- * Check 2: Is the local stations database loaded?
- */
-async function checkStationsDb(): Promise<CheckResult> {
-  const start = Date.now();
-  try {
-    const stationsPath = join(__dirname, "stations.json");
-    const raw = readFileSync(stationsPath, "utf-8");
-    const data = JSON.parse(raw);
+function checkStationsDatabase(): HealthCheck {
+  const stations = loadStationsDatabase();
+  const count = Object.keys(stations).length;
 
-    const count = Object.keys(data).length;
-    if (count === 0) {
-      return {
-        name: "stations-database",
-        status: "degraded",
-        message: "Stations database loaded but empty",
-        durationMs: Date.now() - start,
-      };
-    }
-
+  if (count === 0) {
     return {
-      name: "stations-database",
-      status: "ok",
-      message: `Loaded ${count.toLocaleString("de-DE")} stations`,
-      durationMs: Date.now() - start,
-    };
-  } catch (err: any) {
-    return {
-      name: "stations-database",
+      name: "stations_database",
       status: "error",
-      message: err?.message || String(err),
-      durationMs: Date.now() - start,
+      message: "Stations database could not be loaded",
+      details: { path: "netlify/functions/stations.json" },
     };
   }
-}
 
-/**
- * Check 3: Can we read the package.json (used for version info)?
- */
-async function checkPackageJson(): Promise<CheckResult> {
-  const start = Date.now();
-  try {
-    const pkgPath = join(__dirname, "..", "..", "package.json");
-    const raw = readFileSync(pkgPath, "utf-8");
-    const pkg = JSON.parse(raw);
-
-    if (!pkg.version) {
-      return {
-        name: "package-json",
-        status: "degraded",
-        message: "package.json loaded but has no version field",
-        durationMs: Date.now() - start,
-      };
-    }
-
+  if (count < 1_000) {
     return {
-      name: "package-json",
-      status: "ok",
-      message: `Version ${pkg.version} read successfully`,
-      durationMs: Date.now() - start,
-    };
-  } catch (err: any) {
-    return {
-      name: "package-json",
-      status: "error",
-      message: err?.message || String(err),
-      durationMs: Date.now() - start,
+      name: "stations_database",
+      status: "degraded",
+      message: `Stations database loaded but count is low (${count} stations)`,
+      details: { stationCount: count, path: "netlify/functions/stations.json" },
     };
   }
+
+  return {
+    name: "stations_database",
+    status: "ok",
+    message: `Stations database loaded (${count} stations)`,
+    details: { stationCount: count, path: "netlify/functions/stations.json" },
+  };
 }
 
-// ── Version reader (used for the response payload) ───────────────────────────
+function deriveOverallStatus(checks: HealthCheck[]): CheckStatus {
+  if (checks.some((c) => c.status === "error")) return "error";
+  if (checks.some((c) => c.status === "degraded")) return "degraded";
+  return "ok";
+}
 
-function getVersion(): string {
-  try {
-    const pkgPath = join(__dirname, "..", "..", "package.json");
-    const raw = readFileSync(pkgPath, "utf-8");
-    const pkg = JSON.parse(raw);
-    return pkg.version || "unknown";
-  } catch {
-    return "unknown";
+// ---------------------------------------------------------------------------
+// Handler
+// ---------------------------------------------------------------------------
+
+export default async (req: Request): Promise<Response> => {
+  if (req.method === "OPTIONS") {
+    return new Response(null, {
+      status: 204,
+      headers: corsHeaders(),
+    });
   }
-}
 
-// ── Handler ─────────────────────────────────────────────────────────────────
+  const version = readPackageVersion();
 
-export default async (_req: Request): Promise<Response> => {
-  const checks: CheckResult[] = await Promise.all([
-    checkApiReachable(),
-    checkStationsDb(),
-    checkPackageJson(),
+  const checks = await Promise.all([
+    checkAviationWeatherApi(),
+    checkStationsDatabase(),
   ]);
 
-  const body: HealthResponse = {
-    status: deriveOverallStatus(checks),
+  const overallStatus = deriveOverallStatus(checks);
+
+  const response: HealthResponse = {
+    status: overallStatus,
     timestamp: new Date().toISOString(),
-    version: getVersion(),
+    version,
     checks,
   };
 
-  const statusCode = body.status === "error" ? 503 : body.status === "degraded" ? 200 : 200;
+  // Return 503 when the overall health is not "ok" so callers / load balancers
+  // can react appropriately, but still include the full JSON body.
+  const httpStatus = overallStatus === "ok" ? 200 : 503;
 
-  return new Response(JSON.stringify(body, null, 2), {
-    status: statusCode,
-    headers: {
-      "Content-Type": "application/json",
-      "Access-Control-Allow-Origin": "*",
-      "Cache-Control": "no-store",
-    },
-  });
+  return jsonResponse(response, httpStatus);
 };
-
-// ── Netlify Config ────────────────────────────────────────────────────────────
 
 export const config: Config = {
   path: "/api/health",
